@@ -1,0 +1,10 @@
+- name: Get bootstrap keys
+  shell: "kubeadm token list -o json | jq .token -r"
+  register: bootstrap_tokens
+
+- name: Delete bootstrap keys
+  shell: "kubeadm token delete {{item}}"
+  with_items: "{{bootstrap_tokens.stdout_lines}}"
+
+- name: Create new bootstrap_key
+  shell:  "kubeadm token create > /etc/kubernetes/bootstrap_token"

@@ -1,0 +1,17 @@
+- name: Add Google Compute repository key
+  shell: 'curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -'
+
+- name: Add K8s repository
+  apt_repository:
+    repo: "deb http://apt.kubernetes.io/ kubernetes-xenial main"
+    state: present
+
+- name: Install K8S packages
+  apt:
+    name: ['kubelet','kubeadm','kubectl','kubernetes-cni']
+    state: latest
+    update_cache: yes
+
+- name: Install Python openshift
+  pip:
+    name: openshift

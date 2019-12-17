@@ -48,6 +48,11 @@
   tags: ["master-slurm","slurm"]
 
 - debug:
+    msg: "[BIBIGRID] Setup K8S master"
+  - include: 050-k8s.yml
+  - include: 050-k8s-token.yml
+
+- debug:
     msg: "[BIBIGRID] Setup Theia"
   when:
     - enable_ide == 'yes'
@@ -55,3 +60,5 @@
   when:
     - enable_ide == 'yes'
   tags: ["master-theia","theia"]
+
+

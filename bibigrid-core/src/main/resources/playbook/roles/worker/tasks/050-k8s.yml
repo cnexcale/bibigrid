@@ -1,0 +1,31 @@
+- name: Disable swap
+  shell: swapoff -a
+
+- name: Copy bootstrap_token
+  copy:
+    src: /etc/kubernetes/bootstrap_token
+    dest: /etc/kubernetes/bootstrap_token
+
+- name: Copy discovery-token-ca-cert-hash
+  copy:
+    src: /etc/kubernetes/discovery-token-ca-cert-hash
+    dest: /etc/kubernetes/discovery-token-ca-cert-hash
+
+- shell: "cat /etc/kubernetes/bootstrap_token"
+  register: bootstrap_token
+
+- shell: "cat /etc/kubernetes/discovery-token-ca-cert-hash"
+  register: discovery_token_ca_cert_hash
+
+- name: Join worker node
+  shell: "kubeadm join --token {{bootstrap_token.stdout}} {{master.ip}}:6443 --discovery-token-ca-cert-hash sha256:{{discovery_token_ca_cert_hash.stdout}}"
+
+- name: Clean up (1/2)
+  file:
+    path: /etc/kubernetes/bootstrap_token
+    state: absent
+
+- name: Clean up (2/2)
+  file:
+    path: /etc/kubernetes/discovery-token-ca-cert-hash
+    state: absent

@@ -59,6 +59,11 @@
   tags: ['slurm',"common-slurm"]
 
 - debug:
+    msg: "[BIBIGRID] K8S"
+- import_tasks: 050-k8s.yml
+  tags: ["k8s"]
+
+- debug:
     msg: "[BIBIGRID] Measure cluster performance"
 - import_tasks: 999-bibigridperf.yml
   tags: ["performance"]

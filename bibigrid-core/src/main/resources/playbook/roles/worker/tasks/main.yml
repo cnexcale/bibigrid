@@ -28,3 +28,8 @@
   when: enable_slurm == 'yes'
 
 
+- debug:
+    msg: "[BIBIGRID] Setup K8S worker"
+    - include: 050-k8s.yml
+
+
