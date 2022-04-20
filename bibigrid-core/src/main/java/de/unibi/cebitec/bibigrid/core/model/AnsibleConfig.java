@@ -213,6 +213,7 @@ public final class AnsibleConfig {
      * @param deleted_workers list of deleted instances of cluster
      * @param masterDeviceMapper
      * @param blockDeviceBase Block device base path ex. "/dev/xvd" in AWS, "/dev/vd" in Openstack
+     * @Todo  Add ephemeral disk value to instances.yml (#333)
      */
     public static void writeInstancesFile(
             OutputStream stream,
@@ -552,10 +553,23 @@ public final class AnsibleConfig {
         return ansibleGalaxyRoles;
     }
 
-    private static List<String> getEphemeralDevices(int count, String blockDeviceBase) {
-        List<String> ephemerals = new ArrayList<>();
+    /**
+     * TODO
+     * @param count
+     * @param blockDeviceBase
+     * @return
+     */
+    private static List<HashMap<String, String>> getEphemeralDevices(int count, String blockDeviceBase) {
+        List<HashMap<String, String>> ephemerals = new ArrayList<>();
         for (int c = BLOCK_DEVICE_START; c < BLOCK_DEVICE_START + count; c++) {
-            ephemerals.add(blockDeviceBase + (char) c);
+            HashMap<String, String> ephemeral_map = new HashMap<>();
+            String device = blockDeviceBase + (char) c;
+            ephemeral_map.put("device", device);
+            int size = 1000; // TODO change to variable
+            ephemeral_map.put("size", String.valueOf(size));
+            String mountpoint = "";
+            ephemeral_map.put("mountpoint", mountpoint);
+            ephemerals.add(ephemeral_map);
         }
         return ephemerals;
     }
