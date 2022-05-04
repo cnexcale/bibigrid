@@ -1,5 +1,7 @@
 package de.unibi.cebitec.bibigrid.core.model;
 
+import java.util.List;
+
 /**
  * @author Johannes Steiner - jsteiner(at)cebitec.uni-bielefeld.de
  */
@@ -7,6 +9,7 @@ public abstract class InstanceType {
     protected String value;
     protected int cpuCores;
     protected int ephemerals;
+    protected List<Long> ephemeralDiskSpace;
     protected boolean swap;
     protected boolean configDrive;
     protected boolean clusterInstance;
@@ -25,6 +28,10 @@ public abstract class InstanceType {
 
     public int getEphemerals() {
         return ephemerals;
+    }
+
+    public List<Long> getEphemeralDiskSpace() {
+        return ephemeralDiskSpace;
     }
 
     public int getSwap() {

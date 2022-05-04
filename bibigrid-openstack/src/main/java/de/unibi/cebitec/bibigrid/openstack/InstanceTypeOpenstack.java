@@ -4,6 +4,8 @@ import de.unibi.cebitec.bibigrid.core.model.InstanceType;
 
 import org.openstack4j.model.compute.Flavor;
 
+import java.util.ArrayList;
+
 /**
  * Provides a list of all supported flavors supported by configured openstack installation/region.
  *
@@ -17,6 +19,7 @@ class InstanceTypeOpenstack extends InstanceType {
         value = flavor.getName();
         cpuCores = flavor.getVcpus();
         ephemerals = Math.min(1, Math.max(0, flavor.getEphemeral()));
+        ephemeralDiskSpace = new ArrayList<>(flavor.getEphemeral());
         clusterInstance = false;
         pvm = false;
         hvm = false;

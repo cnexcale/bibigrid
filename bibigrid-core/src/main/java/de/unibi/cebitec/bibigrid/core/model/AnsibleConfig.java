@@ -433,7 +433,7 @@ public final class AnsibleConfig {
         InstanceType providerType = masterInstance.getConfiguration().getProviderType();
         masterMap.put("cores", providerType.getCpuCores());
         masterMap.put("memory", providerType.getMaxRam());
-        masterMap.put("ephemerals", getEphemeralDevices(providerType.getEphemerals(), blockDeviceBase));
+        masterMap.put("ephemerals", getEphemeralDevices(providerType, blockDeviceBase));
         if (masterMounts != null && masterMounts.size() > 0) {
             List<Map<String, String>> masterMountsMap = new ArrayList<>();
             for (Configuration.MountPoint masterMount : masterMounts) {
@@ -473,7 +473,8 @@ public final class AnsibleConfig {
         instanceMap.put("memory", instance.getConfiguration().getProviderType().getMaxRam());
         if (full) {
             instanceMap.put("hostname", instance.getHostname());
-            instanceMap.put("ephemerals", getEphemeralDevices(instance.getConfiguration().getProviderType().getEphemerals(), blockDeviceBase));
+            InstanceType providerType = instance.getConfiguration().getProviderType();
+            instanceMap.put("ephemerals", getEphemeralDevices(providerType, blockDeviceBase));
         }
         return instanceMap;
     }
@@ -555,19 +556,20 @@ public final class AnsibleConfig {
 
     /**
      * TODO
-     * @param count
+     * @param flavor instanceType / providerType
      * @param blockDeviceBase
      * @return
      */
-    private static List<HashMap<String, String>> getEphemeralDevices(int count, String blockDeviceBase) {
+    private static List<HashMap<String, String>> getEphemeralDevices(InstanceType flavor, String blockDeviceBase) {
         List<HashMap<String, String>> ephemerals = new ArrayList<>();
-        for (int c = BLOCK_DEVICE_START; c < BLOCK_DEVICE_START + count; c++) {
+        int count = flavor.getEphemerals();
+        for (int c = 0; c < count; c++) {
             HashMap<String, String> ephemeral_map = new HashMap<>();
-            String device = blockDeviceBase + (char) c;
+            String device = blockDeviceBase + (char) ( c + BLOCK_DEVICE_START );
             ephemeral_map.put("device", device);
-            int size = 1000; // TODO change to variable
+            long size = flavor.getEphemeralDiskSpace().get(c);
             ephemeral_map.put("size", String.valueOf(size));
-            String mountpoint = "";
+            String mountpoint = ""; // TODO change to variable
             ephemeral_map.put("mountpoint", mountpoint);
             ephemerals.add(ephemeral_map);
         }
