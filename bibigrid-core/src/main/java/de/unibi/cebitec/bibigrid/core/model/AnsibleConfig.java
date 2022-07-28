@@ -20,7 +20,6 @@ import java.util.*;
  */
 public final class AnsibleConfig {
     private static final Logger LOG = LoggerFactory.getLogger(AnsibleConfig.class);
-    private static final int BLOCK_DEVICE_START = 98;
 
     AnsibleConfig() {}
 
@@ -64,8 +63,8 @@ public final class AnsibleConfig {
      * @param tags a list of tags bound to role
      * @return role hashmap
      */
-    private static HashMap createRole(String name, List tags) {
-        HashMap role = new LinkedHashMap<String,Object>();
+    private static HashMap<String, Object> createRole(String name, List tags) {
+        HashMap<String, Object> role = new LinkedHashMap<>();
         role.put("role",name);
         role.put("tags",tags);
         return role;
@@ -97,7 +96,7 @@ public final class AnsibleConfig {
             }
         }
         master.put("vars_files", vars_files);
-        List roles = new ArrayList<>();
+        List<Object> roles = new ArrayList<>();
         roles.add("common");
         roles.add("master");
         roles.add(createRole("slurm",Arrays.asList("slurm","scale-up","scale-down")));
@@ -171,8 +170,10 @@ public final class AnsibleConfig {
     /**
      * Write specified instance to stream (in YAML format)
      */
-    public static void writeSpecificInstanceFile(OutputStream stream, Instance instance, String blockDeviceBase) {
-        YamlInterpreter.writeToOutputStream(stream, getInstanceMap(instance, blockDeviceBase, true));
+    public static void writeSpecificInstanceFile(
+            OutputStream stream, Instance instance,
+            List<Configuration.MountPoint> mountPoints, String blockDeviceBase) {
+        YamlInterpreter.writeToOutputStream(stream, getInstanceMap(instance, mountPoints, blockDeviceBase));
     }
 
     /**
@@ -189,28 +190,10 @@ public final class AnsibleConfig {
     }
 
     /**
-     * Writes instances.yml with instances information and an empty deleted_worker list.
+     * Write instances.yml with instances information.
      * @param stream write into cluster_instances.yml
      * @param master master instance of cluster
      * @param workers list of worker instances of cluster
-     * @param masterDeviceMapper
-     * @param blockDeviceBase Block device base path for ex. "/dev/xvd" in AWS, "/dev/vd" in OpenStack
-     */
-    public static void writeInstancesFile(
-            OutputStream stream,
-            Instance master,
-            List<Instance> workers,
-            DeviceMapper masterDeviceMapper,
-            String blockDeviceBase) {
-            writeInstancesFile(stream,master,workers,new ArrayList<Instance>(),masterDeviceMapper,blockDeviceBase);
-    }
-
-    /**
-     * Write instances.yml with instances informaion.
-     * @param stream write into cluster_instances.yml
-     * @param master master instance of cluster
-     * @param workers list of worker instances of cluster
-     * @param deleted_workers list of deleted instances of cluster
      * @param masterDeviceMapper
      * @param blockDeviceBase Block device base path ex. "/dev/xvd" in AWS, "/dev/vd" in Openstack
      * @Todo  Add ephemeral disk value to instances.yml (#333)
@@ -219,13 +202,14 @@ public final class AnsibleConfig {
             OutputStream stream,
             Instance master,
             List<Instance> workers,
-            List<Instance> deleted_workers,
             DeviceMapper masterDeviceMapper,
             String blockDeviceBase) {
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put("master", getMasterMap(master, setMasterMounts(masterDeviceMapper), blockDeviceBase));
-        map.put("workers", getWorkerMap(workers, blockDeviceBase));
-        map.put("deletedWorkers",getWorkerMap(deleted_workers,blockDeviceBase));
+        List<Configuration.MountPoint> masterMounts = setMasterMounts(masterDeviceMapper);
+        map.put("master", getMasterMap(master, masterMounts, blockDeviceBase));
+        map.put("workers", getWorkerMap(workers, masterMounts, blockDeviceBase));
+        // No deleted workers when writing instance file first time, create empty list
+        map.put("deletedWorkers", new ArrayList<Map<String, Object>>());
         YamlInterpreter.writeToOutputStream(stream, map);
     }
 
@@ -276,10 +260,10 @@ public final class AnsibleConfig {
      * ATTENTION/REMARK:
      * It is necessary to have the correct ssh user in config
      *
-     * @param sshSession
-     * @param config
-     * @param cluster
-     * @param providerModule
+     * @param sshSession active session
+     * @param config parsed configuration
+     * @param cluster representation of cluster with id, instances...
+     * @param providerModule specific cloud provider
 
      * @throws JSchException
      */
@@ -292,8 +276,15 @@ public final class AnsibleConfig {
         ChannelSftp channel = (ChannelSftp) sshSession.openChannel("sftp");
         channel.connect();
         try {
-            rewriteInstancesFile(channel, cluster.getWorkerInstances(), cluster.getDeletedInstances(), providerModule.getBlockDeviceBase());
-            updateSpecificInstanceFiles(channel, cluster.getWorkerInstances(), providerModule.getBlockDeviceBase());
+            rewriteInstancesFile(
+                    channel,
+                    cluster.getWorkerInstances(),
+                    cluster.getDeletedInstances(),
+                    config.getMasterMounts(),
+                    providerModule.getBlockDeviceBase());
+            updateSpecificInstanceFiles(
+                    channel, cluster.getWorkerInstances(),
+                    config.getMasterMounts(), providerModule.getBlockDeviceBase());
             writeHostsFile(channel, config.getSshUser(), cluster.getWorkerInstances(), config.useHostnames());
             LOG.info("Ansible files successfully updated.");
         } catch (SftpException e) {
@@ -314,25 +305,29 @@ public final class AnsibleConfig {
     private static void updateSpecificInstanceFiles (
             ChannelSftp channel,
             List<Instance> workerInstances,
+            List<Configuration.MountPoint> mountPoints,
             String blockDeviceBase) throws SftpException {
         String vars_dir = channel.getHome() + "/" + AnsibleResources.CONFIG_ROOT_PATH + "/";
         // Remove old specific instance files
         List<String> ip_files = new ArrayList<>();
         channel.cd(vars_dir);
         Vector vars_files = channel.ls("*.yml");
+        // Loop over all yml files in vars dir
         for(Object file : vars_files) {
             String filename = ((ChannelSftp.LsEntry) file).getFilename();
+            // Check, whether instances yml (<instance-ip>.yml) is belongs to available instance in workerInstances
             if (YamlInterpreter.isIPAddressFile(filename)) {
                 ip_files.add(filename);
             }
         }
         for (String ip_file : ip_files) {
+            // Remove file if not longer belonging to a worker instance
             channel.rm(ip_file);
         }
         // Write new specific instance files
         for (Instance worker : workerInstances) {
             String filename = vars_dir + worker.getPrivateIp() + ".yml";
-            AnsibleConfig.writeSpecificInstanceFile(channel.put(filename), worker, blockDeviceBase);
+            AnsibleConfig.writeSpecificInstanceFile(channel.put(filename), worker, mountPoints, blockDeviceBase);
         }
     }
 
@@ -347,12 +342,13 @@ public final class AnsibleConfig {
             ChannelSftp channel,
             List<Instance> workerInstances,
             List<Instance> deletedInstances,
+            List<Configuration.MountPoint> masterMounts,
             String blockDeviceBase) throws SftpException {
         String instances_file = channel.getHome() + "/" + AnsibleResources.COMMONS_INSTANCES_FILE;
         InputStream in = channel.get(instances_file);
         Map<String, Object> map = YamlInterpreter.readFromInputStream(in);
-        map.replace("workers", getWorkerMap(workerInstances, blockDeviceBase));
-        map.replace("deletedWorkers",getWorkerMap(deletedInstances, blockDeviceBase));
+        map.replace("workers", getWorkerMap(workerInstances, masterMounts, blockDeviceBase));
+        map.replace("deletedWorkers", getWorkerMap(deletedInstances, masterMounts, blockDeviceBase));
         OutputStream out = channel.put(instances_file);
         YamlInterpreter.writeToOutputStream(out, map);
     }
@@ -427,13 +423,7 @@ public final class AnsibleConfig {
             Instance masterInstance,
             List<Configuration.MountPoint> masterMounts,
             String blockDeviceBase) {
-        Map<String, Object> masterMap = new LinkedHashMap<>();
-        masterMap.put("ip", masterInstance.getPrivateIp());
-        masterMap.put("hostname", masterInstance.getHostname());
-        InstanceType providerType = masterInstance.getConfiguration().getProviderType();
-        masterMap.put("cores", providerType.getCpuCores());
-        masterMap.put("memory", providerType.getMaxRam());
-        masterMap.put("ephemerals", getEphemeralDevices(providerType, blockDeviceBase));
+        Map<String, Object> masterMap = getInstanceMap(masterInstance, masterMounts, blockDeviceBase);
         if (masterMounts != null && masterMounts.size() > 0) {
             List<Map<String, String>> masterMountsMap = new ArrayList<>();
             for (Configuration.MountPoint masterMount : masterMounts) {
@@ -450,12 +440,13 @@ public final class AnsibleConfig {
     /**
      * Provides instance map for all worker instances.
      * @param workers list of workers
-     * @return list of maps for each worker instance
+     * @return list of maps for each worker instance, empty list if worker list is empty
      */
-    private static List<Map<String, Object>> getWorkerMap(List<Instance> workers, String blockDeviceBase) {
+    private static List<Map<String, Object>> getWorkerMap(
+            List<Instance> workers, List<Configuration.MountPoint> masterMounts, String blockDeviceBase) {
         List<Map<String, Object>> workerList = new ArrayList<>();
         for (Instance worker : workers) {
-            workerList.add(getInstanceMap(worker, blockDeviceBase, true));
+            workerList.add(getInstanceMap(worker, masterMounts, blockDeviceBase));
         }
         return workerList;
     }
@@ -463,19 +454,21 @@ public final class AnsibleConfig {
     /**
      * Creates map of instance configuration.
      * @param instance current remote instance
-     * @param full degree of detail TODO can be removed
      * @return map of instance configuration
      */
-    private static Map<String, Object> getInstanceMap(Instance instance, String blockDeviceBase, boolean full) {
+    private static Map<String, Object> getInstanceMap(
+            Instance instance, List<Configuration.MountPoint> mountPoints, String blockDeviceBase) {
+        InstanceType providerType = instance.getConfiguration().getProviderType();
         Map<String, Object> instanceMap = new LinkedHashMap<>();
         instanceMap.put("ip", instance.getPrivateIp());
-        instanceMap.put("cores", instance.getConfiguration().getProviderType().getCpuCores());
-        instanceMap.put("memory", instance.getConfiguration().getProviderType().getMaxRam());
-        if (full) {
-            instanceMap.put("hostname", instance.getHostname());
-            InstanceType providerType = instance.getConfiguration().getProviderType();
-            instanceMap.put("ephemerals", getEphemeralDevices(providerType, blockDeviceBase));
+        instanceMap.put("cores", providerType.getCpuCores());
+        instanceMap.put("memory", providerType.getMaxRam());
+        instanceMap.put("hostname", instance.getHostname());
+        List<HashMap<String, Object>> ephemerals = getEphemeralDevices(providerType, mountPoints, blockDeviceBase);
+        if (!ephemerals.isEmpty()) {
+            instanceMap.put("ephemerals", ephemerals);
         }
+        instanceMap.put("disk_space", providerType.getMaxDiskSpace());
         return instanceMap;
     }
 
@@ -555,21 +548,29 @@ public final class AnsibleConfig {
     }
 
     /**
-     * TODO
      * @param flavor instanceType / providerType
-     * @param blockDeviceBase
-     * @return
+     * @param blockDeviceBase vda, vdb, ...
+     * @return list of ephemerals with device, size and mountpoint
      */
-    private static List<HashMap<String, String>> getEphemeralDevices(InstanceType flavor, String blockDeviceBase) {
-        List<HashMap<String, String>> ephemerals = new ArrayList<>();
+    private static List<HashMap<String, Object>> getEphemeralDevices(
+            InstanceType flavor, List<Configuration.MountPoint> mountPoints, String blockDeviceBase) {
+        List<HashMap<String, Object>> ephemerals = new ArrayList<>();
         int count = flavor.getEphemerals();
         for (int c = 0; c < count; c++) {
-            HashMap<String, String> ephemeral_map = new HashMap<>();
-            String device = blockDeviceBase + (char) ( c + BLOCK_DEVICE_START );
+            HashMap<String, Object> ephemeral_map = new HashMap<>();
+            String device = blockDeviceBase + (char) ( c + DeviceMapper.BLOCK_DEVICE_START );
             ephemeral_map.put("device", device);
-            long size = flavor.getEphemeralDiskSpace().get(c);
-            ephemeral_map.put("size", String.valueOf(size));
-            String mountpoint = ""; // TODO change to variable
+            List<Long> ephemeralDiskSpace = flavor.getEphemeralDiskSpace();
+            long size = ( ephemeralDiskSpace == null || ephemeralDiskSpace.isEmpty() ) ? 0 : ephemeralDiskSpace.get(c);
+            ephemeral_map.put("size", size);
+            // cloud provider specific mounting point
+            String mountpoint;
+            if (mountPoints.isEmpty()) {
+                // TODO hardcoded vol
+                mountpoint = "/vol";
+            } else {
+                mountpoint = mountPoints.get(c).getTarget();
+            }
             ephemeral_map.put("mountpoint", mountpoint);
             ephemerals.add(ephemeral_map);
         }

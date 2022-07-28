@@ -11,7 +11,7 @@ import io.undertow.server.HttpServerExchange;
 import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
+import java.net.HttpURLConnection;
 import java.util.Collections;
 import java.util.Map;
 
@@ -52,21 +52,21 @@ public class BibigridScaleIdPostHandler implements LightHttpHandler {
                 workerBatch = Integer.parseInt(bodyMap.get("batch").toString());
                 count = Integer.parseInt(bodyMap.get("count").toString());
             } catch (NumberFormatException nf) {
-                exchange.setStatusCode(400);
+                exchange.setStatusCode(HttpURLConnection.HTTP_BAD_REQUEST);
                 response.put("message", "Malformed request");
                 exchange.getResponseSender().send(response.toJSONString());
             }
             ScaleWorkerIntent scaleWorkerIntent = module.getScaleWorkerIntent(config, clusterId, workerBatch, count, scaling);
             Thread t = new Thread(scaleWorkerIntent);
             t.start();
-            exchange.setStatusCode(200);
+            exchange.setStatusCode(HttpURLConnection.HTTP_OK);
             response.put("info", "Scaling: " + scaling + " started!");
 
             exchange.getResponseSender().send(response.toJSONString());
 
 
         } else {
-            exchange.setStatusCode(400);
+            exchange.setStatusCode(HttpURLConnection.HTTP_BAD_REQUEST);
             exchange.getResponseSender().send("{\"message\":\"" + serviceProviderConnector.getError() + ". This is most likely" +
                     " caused by not sourcing the CloudComputingOpenRC.sh file." + "\"}");
         }

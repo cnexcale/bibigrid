@@ -30,7 +30,8 @@ public class ScaleWorkerIntent implements Runnable {
     private final DataBase db = DataBase.getDataBase();
 
 
-    public ScaleWorkerIntent(ProviderModule module, Configuration config, String clusterId, int batchIndex, int count, String scaling) {
+    public ScaleWorkerIntent(ProviderModule module, Configuration config,
+                             String clusterId, int batchIndex, int count, String scaling) {
         this.batchIndex = batchIndex;
         this.module = module;
         this.count = count;
@@ -45,7 +46,8 @@ public class ScaleWorkerIntent implements Runnable {
     }
 
     private void scaleDown() {
-        db.status.put(createCluster.cluster.getClusterId(), new Status(Status.CODE.Scale_Down, "Scaling down the cluster by " + count + " worker!"));
+        db.status.put(createCluster.cluster.getClusterId(), new Status(Status.CODE.Scale_Down,
+                "Scaling down the cluster by " + count + " worker!"));
         Map<String, Cluster> clusterMap = new HashMap<>();
         clusterMap.put(createCluster.cluster.getClusterId(), createCluster.cluster);
         module.getTerminateIntent(config, clusterMap)
@@ -55,7 +57,8 @@ public class ScaleWorkerIntent implements Runnable {
     }
 
     private void scaleUp() {
-        db.status.put(createCluster.cluster.getClusterId(), new Status(Status.CODE.Scale_Up, "Scaling up the cluster by " + count + " worker!"));
+        db.status.put(createCluster.cluster.getClusterId(), new Status(Status.CODE.Scale_Up,
+                "Scaling up the cluster by " + count + " worker!"));
         createCluster.createWorkerInstances(batchIndex, count);
         db.status.put(createCluster.cluster.getClusterId(), new Status(Status.CODE.Running));
     }

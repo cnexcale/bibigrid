@@ -19,7 +19,7 @@ class InstanceTypeOpenstack extends InstanceType {
         value = flavor.getName();
         cpuCores = flavor.getVcpus();
         ephemerals = Math.min(1, Math.max(0, flavor.getEphemeral()));
-        ephemeralDiskSpace = new ArrayList<>(flavor.getEphemeral());
+        ephemeralDiskSpace = new ArrayList<>(flavor.getEphemeral() * 1024);
         clusterInstance = false;
         pvm = false;
         hvm = false;

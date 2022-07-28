@@ -85,11 +85,10 @@ public class StartUp {
                 clOptions.put(im, parameters);
             }
 
-            if (validator.validateProviderParameters()) {
-                runIntent(module, validator, clOptions, intentMode, config);
-            } else {
+            if (!validator.validateProviderParameters()) {
                 LOG.error(Constant.ABORT_WITH_NOTHING_STARTED);
             }
+            runIntent(module, validator, clOptions, intentMode, config);
         } catch (ConfigurationException e) {
             LOG.error(e.getMessage());
             LOG.error(Constant.ABORT_WITH_NOTHING_STARTED);

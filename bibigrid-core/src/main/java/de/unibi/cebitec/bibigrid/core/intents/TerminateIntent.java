@@ -168,6 +168,7 @@ public abstract class TerminateIntent extends Intent {
                     config.getClusterKeyPair(),
                     cluster.getMasterInstance().getPublicIp());
             sshSession.connect();
+
             AnsibleConfig.updateAnsibleWorkerLists(sshSession, config, cluster, providerModule);
             SshFactory.executeScript(sshSession, ShellScriptCreator.executeScaleTasksOnMaster(Scale.down));
             sshSession.disconnect();

@@ -172,7 +172,7 @@ public class AnsibleConfigTest {
                     public void write(int b) {
                         System.out.write(b);
                     }
-                }, worker, "/dev/vd");
+                }, worker, testConfiguration.getMasterMounts(), "/dev/vd");
             }
         } catch (IOException e) {
             e.printStackTrace();

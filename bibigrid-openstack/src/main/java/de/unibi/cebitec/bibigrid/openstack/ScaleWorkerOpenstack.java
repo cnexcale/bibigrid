@@ -9,6 +9,5 @@ public class ScaleWorkerOpenstack extends ScaleWorkerIntent {
 
     ScaleWorkerOpenstack(final ProviderModule providerModule, final Configuration config, String clusterId, int batchIndex, int count, String scaling) {
         super(providerModule, config, clusterId, batchIndex, count, scaling);
-
     }
 }

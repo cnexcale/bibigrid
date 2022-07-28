@@ -7,13 +7,21 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Generates mounting points for Snapshots / Volumes.
+ */
 public class DeviceMapper {
-    // vdb ... vdz
+    // e.g. vdb ... vdz for OpenStack
     private static final int MAX_DEVICES = 25;
+
+    public static final int BLOCK_DEVICE_START = 98;
+
+    private static final String DEVICE_MOUNT_BASE = "/dev/sd";
 
     private final ProviderModule providerModule;
     // snap-0a12b34c -> /my/dir/
     private final List<Configuration.MountPoint> snapshotToMountPoint;
+
     // snap-0a12b34c -> /dev/sdf
     private final Map<String, String> snapshotToDeviceName;
     // /my/dir/ -> /dev/xvdf
@@ -21,7 +29,8 @@ public class DeviceMapper {
 
     private int usedDevices;
 
-    public DeviceMapper(ProviderModule providerModule, List<Configuration.MountPoint> snapshotIdToMountPoint,
+    public DeviceMapper(ProviderModule providerModule,
+                        List<Configuration.MountPoint> snapshotIdToMountPoint,
                         int usedDevices) throws IllegalArgumentException {
         this.providerModule = providerModule;
 
@@ -59,13 +68,18 @@ public class DeviceMapper {
     }
 
     private char nextAvailableDeviceLetter() {
-        char nextLetter = (char) (usedDevices + 98); // b
+        char nextLetter = (char) (usedDevices + BLOCK_DEVICE_START); // b
         usedDevices++;
         return nextLetter;
     }
 
+    /**
+     * Creates device name mounting point.
+     * @param letter incrementing letters provided by nextAvailableDeviceLetter()
+     * @return device name e.g. "/dev/sdb"
+     */
     private String createDeviceName(final char letter) {
-        return "/dev/sd" + letter;
+        return DEVICE_MOUNT_BASE + letter;
     }
 
     private String createRealDeviceName(final char letter) {
@@ -79,7 +93,8 @@ public class DeviceMapper {
                 String[] idParts = rawSnapshotId.split(":");
                 return Integer.parseInt(idParts[1]);
             } catch (NumberFormatException | ArrayIndexOutOfBoundsException e) {
-                throw new IllegalArgumentException("The partition number for snapshotId '" + rawSnapshotId + "' is invalid!");
+                throw new IllegalArgumentException(
+                        "The partition number for snapshotId '" + rawSnapshotId + "' is invalid!");
             }
         } else {
             return -1;
@@ -97,7 +112,8 @@ public class DeviceMapper {
     }
 
     /**
-     * Return BlockDeviceBase in dependence of used cluster mode
+     * Return BlockDeviceBase in dependence of used cluster mode.
+     * In OpenStack "/dev/vd" as described in ProviderModuleOpenstack.OS_MOUNT_POINT_BASE
      */
     public static String getBlockDeviceBase(final ProviderModule providerModule) {
         return providerModule != null ? providerModule.getBlockDeviceBase() : null;

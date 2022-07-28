@@ -20,6 +20,7 @@ import java.util.HashMap;
  */
 @SuppressWarnings("unused")
 public class ProviderModuleOpenstack extends ProviderModule {
+    public static final String OS_MOUNT_POINT_BASE = "/dev/vd";
     @Override
     public String getName() {
         return "openstack";
@@ -83,7 +84,7 @@ public class ProviderModuleOpenstack extends ProviderModule {
 
     @Override
     public String getBlockDeviceBase() {
-        return "/dev/vd";
+        return OS_MOUNT_POINT_BASE;
     }
 
     @Override

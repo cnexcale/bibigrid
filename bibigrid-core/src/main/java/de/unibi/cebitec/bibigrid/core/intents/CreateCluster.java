@@ -124,7 +124,7 @@ public abstract class CreateCluster extends Intent {
             return false;
         }
         this.configureClusterMasterInstance();
-        this.configureClusterWorkerInstance();
+        this.configureClusterWorkerInstances();
         return true;
     }
 
@@ -142,7 +142,7 @@ public abstract class CreateCluster extends Intent {
     /**
      * Configure and manage Worker-instances to launch.
      */
-    public void configureClusterWorkerInstance() {
+    public void configureClusterWorkerInstances() {
         LOG.info("Worker instance(s) configured.");
     }
 
@@ -271,7 +271,9 @@ public abstract class CreateCluster extends Intent {
                     sshSession.disconnect();
                     return false;
                 }
-                instanceConfiguration.setProviderType(providerModule.getInstanceType(config, instanceConfiguration.getType()));
+                instanceConfiguration.setProviderType(
+                        providerModule.getInstanceType(config, instanceConfiguration.getType())
+                );
             } else {
                 Instance workerBatchInstance = workersBatch.get(0);
                 instanceConfiguration =
@@ -284,12 +286,15 @@ public abstract class CreateCluster extends Intent {
                 LOG.error("Quotas exceeded. No additional workers could be launched.");
                 return false;
             }
-            LOG.info("Creating {} worker " + (count == 1 ? "instance" : "instances") + " for batch {}.", count, batchIndex);
+            LOG.info("Creating {} worker "
+                    + (count == 1 ? "instance" : "instances")
+                    + " for batch {}.", count, batchIndex);
             instanceConfiguration.setCount(count);
             String workerNameTag = WORKER_NAME_PREFIX + "-" + cluster.getClusterId();
             int workerIndex = workersBatch.size() + 1;
             List<Instance> additionalWorkers =
-                     launchAdditionalClusterWorkerInstances(batchIndex, workerIndex, instanceConfiguration, workerNameTag);
+                     launchAdditionalClusterWorkerInstances(
+                             batchIndex, workerIndex, instanceConfiguration, workerNameTag);
             if (additionalWorkers == null) {
                 LOG.error("No additional workers could be launched.");
                 channelSftp.disconnect();
@@ -304,11 +309,18 @@ public abstract class CreateCluster extends Intent {
             config.getClusterKeyPair().setName(CreateCluster.PREFIX + cluster.getClusterId());
             config.getClusterKeyPair().load();
             AnsibleConfig.updateAnsibleWorkerLists(sshSession, config, cluster, providerModule);
-            SshFactory.executeScript(sshSession, ShellScriptCreator.executeScaleTasksOnMaster(Scale.up).concat(ShellScriptCreator.executePlaybookOnWorkers(additionalWorkers)));
+            SshFactory.executeScript(
+                    sshSession,
+                    ShellScriptCreator
+                            .executeScaleTasksOnMaster(Scale.up)
+                            .concat(ShellScriptCreator.executePlaybookOnWorkers(additionalWorkers))
+            );
             if (additionalWorkers.size() == 1) {
-                LOG.info(I, "{} instance has been successfully added to cluster {}.", additionalWorkers.size(), cluster.getClusterId());
+                LOG.info(I, "{} instance has been successfully added to cluster {}.",
+                        additionalWorkers.size(), cluster.getClusterId());
             } else {
-                LOG.info(I, "{} instances have been successfully added to cluster {}.", additionalWorkers.size(), cluster.getClusterId());
+                LOG.info(I, "{} instances have been successfully added to cluster {}.",
+                        additionalWorkers.size(), cluster.getClusterId());
             }
         } catch (JSchException sshError) {
             LOG.error("Update may not be finished properly due to a connection error.");
@@ -340,9 +352,13 @@ public abstract class CreateCluster extends Intent {
 
     /**
      * Start the batch of cluster worker instances.
+     * @param batchIndex
+     * @param instanceConfiguration
+     * @param workerNameTag
      * @return List of worker Instances
      */
-    protected abstract List<Instance> launchClusterWorkerInstances(int batchIndex, Configuration.WorkerInstanceConfiguration instanceConfiguration, String workerNameTag);
+    protected abstract List<Instance> launchClusterWorkerInstances(
+            int batchIndex, Configuration.WorkerInstanceConfiguration instanceConfiguration, String workerNameTag);
 
     /**
      * Start additional cluster worker instances in scaling up process with specified batch.
@@ -438,19 +454,17 @@ public abstract class CreateCluster extends Intent {
                 sleep(4);
                 // Create new Session to avoid packet corruption.
                 Session sshSession = SshFactory.createSshSession(config.getSshUser(), config.getClusterKeyPair(), masterIp);
-                if (sshSession != null) {
-                    // Start connection attempt
-                    sshSession.connect();
-                    LOG.info("Connected to master!");
-                    try {
-                        uploadAnsibleToMaster(sshSession);
-                        LOG.info("Ansible is now configuring your cloud instances. This might take a while.");
-                        SshFactory.executeScript(sshSession, ShellScriptCreator.getMasterAnsibleExecutionScript(config));
-                    } catch (ConfigurationException e) {
-                        throw new ConfigurationException(e.getMessage());
-                    } finally {
-                        sshSession.disconnect();
-                    }
+                // Start connection attempt
+                sshSession.connect();
+                LOG.info("Connected to master!");
+                try {
+                    uploadAnsibleToMaster(sshSession);
+                    LOG.info("Ansible is now configuring your cloud instances. This might take a while.");
+                    SshFactory.executeScript(sshSession, ShellScriptCreator.getMasterAnsibleExecutionScript(config));
+                } catch (ConfigurationException e) {
+                    throw new ConfigurationException(e.getMessage());
+                } finally {
+                    sshSession.disconnect();
                 }
             } catch (IOException | JSchException e) {
                 if (VerboseOutputFilter.SHOW_VERBOSE) {
@@ -489,6 +503,7 @@ public abstract class CreateCluster extends Intent {
             // Add "extra" Ansible role
             List<Configuration.AnsibleRoles> ansibleRoles = config.getAnsibleRoles();
             for (Configuration.AnsibleRoles role : ansibleRoles) {
+                //
                 String roleName = getSingleFileName(role.getFile()).split(".tgz")[0].split(".tar.gz")[0];
                 Map<String, Object> roleVars = role.getVars();
                 // Set role key - value pairs
@@ -579,7 +594,9 @@ public abstract class CreateCluster extends Intent {
 
             // write files using stream
             AnsibleConfig.writeLoginFile(login_stream, config);
-            AnsibleConfig.writeInstancesFile(instances_stream, cluster.getMasterInstance(), cluster.getWorkerInstances(), masterDeviceMapper, providerModule.getBlockDeviceBase());
+            AnsibleConfig.writeInstancesFile(
+                    instances_stream, cluster.getMasterInstance(), cluster.getWorkerInstances(),
+                    masterDeviceMapper, providerModule.getBlockDeviceBase());
             AnsibleConfig.writeConfigFile(config_stream, config, environment.getSubnet().getCidr());
             // TODO network should be written in instance configuration when initializing
             // security group und server group
@@ -595,7 +612,8 @@ public abstract class CreateCluster extends Intent {
             for (Instance worker : cluster.getWorkerInstances()) {
                 String filename = channel_dir + AnsibleResources.CONFIG_ROOT_PATH + "/"
                         + worker.getPrivateIp() + ".yml";
-                AnsibleConfig.writeSpecificInstanceFile(channel.put(filename), worker, providerModule.getBlockDeviceBase());
+                AnsibleConfig.writeSpecificInstanceFile(channel.put(filename), worker,
+                        masterDeviceMapper.getSnapshotIdToMountPoint(), providerModule.getBlockDeviceBase());
             }
         } catch (SftpException | IOException e) {
             throw new ConfigurationException(e);
@@ -671,7 +689,7 @@ public abstract class CreateCluster extends Intent {
     private void uploadAnsibleRole(ChannelSftp channel, String roleFile)
             throws SftpException, IOException {
         String remotePath = AnsibleResources.UPLOAD_PATH + getSingleFileName(roleFile);
-        InputStream stream = new FileInputStream(roleFile);
+        InputStream stream = Files.newInputStream(Paths.get(roleFile));
         // target location on master
         LOG.info(V, "SFTP: Upload file {} to {}", roleFile, remotePath);
         // Upload the file stream via sftp
@@ -679,7 +697,7 @@ public abstract class CreateCluster extends Intent {
     }
 
     /**
-     * Turns path/to/file.* into file.*.
+     * Turns absolute path (path/to/file.*) into file.*.
      * @param roleFile path/to/file
      * @return fileName
      */
